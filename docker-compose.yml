@@ -1,0 +1,22 @@
+# Docker Compose configuration for WebGoat 
+# This file defines how the WebGoat application and WebWolf tool run in containers
+services:
+  webgoat:
+    # Build the Docker image using the Dockerfile in the current directory
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # Tag the image with a version number (defaults to 'local' for development)
+    image: ie3142-webgoat:${IMAGE_TAG:-local}
+    # Use a predictable container name for easier reference
+    container_name: ie3142-webgoat
+    # Set timezone and application host names
+    environment:
+      TZ: ${TZ:-Asia/Colombo}
+      WEBGOAT_HOST: ${WEBGOAT_HOST:-www.webgoat.local}
+      WEBWOLF_HOST: ${WEBWOLF_HOST:-www.webwolf.local}
+    # Expose ports ONLY on localhost (127.0.0.1) for security
+    # This prevents access from other machines on the network
+    ports:
+      - "127.0.0.1:${WEBGOAT_PORT:-8080}:8080"
+      - "127.0.0.1:${WEBWOLF_PORT:-9090}:9090"
