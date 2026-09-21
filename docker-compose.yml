@@ -20,3 +20,32 @@ services:
     ports:
       - "127.0.0.1:${WEBGOAT_PORT:-8080}:8080"
       - "127.0.0.1:${WEBWOLF_PORT:-9090}:9090"
+ # Mount a persistent volume to store WebGoat data and lessons
+    volumes:
+      - webgoat-data:/home/webgoat/.webgoat-2026.2-SNAPSHOT
+    # Run the container with read-only root filesystem (extra security)
+    read_only: true
+    # Create a temporary filesystem for /tmp with strict permissions
+    # rw = read/write, noexec = don't allow executable files, nosuid = no setuid, size limit = 256MB
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=256m
+    # Drop ALL Linux capabilities (the container gets only what it needs)
+    cap_drop:
+      - ALL
+    # Prevent the container from gaining new privileges through setuid/setgid
+    security_opt:
+      - no-new-privileges:true
+    # Health check: verify the container is running and responding
+    # Tries the actuator health endpoint first, falls back to main page
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/WebGoat/actuator/health || curl -fsS http://127.0.0.1:8080/WebGoat/ >/dev/null"]
+      interval: 20s        # Check every 20 seconds
+      timeout: 5s          # Wait up to 5 seconds for a response
+      retries: 12          # Mark unhealthy after 12 failed checks
+      start_period: 90s    # Wait 90 seconds before starting health checks
+    # Do not automatically restart the container if it exits
+    restart: "no"
+
+# Define named volumes for persistent data storage
+volumes:
+  webgoat-data:
