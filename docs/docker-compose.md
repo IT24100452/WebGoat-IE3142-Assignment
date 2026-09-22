@@ -29,3 +29,31 @@ The readiness check is available at
 `http://127.0.0.1:9090/WebWolf/`. The container health check tolerates the
 application's startup period and falls back to the WebGoat context root for
 versions where the actuator route is not available
+
+## Configuration and teardown
+
+Copy `.env.example` to `.env` before changing ports or the timezone. The
+`WEBGOAT_HOST` and `WEBWOLF_HOST` values are container bind addresses and
+should normally remain `0.0.0.0`; host exposure is controlled separately by
+the `127.0.0.1:` port mappings. For proxy-based exercises, add host aliases
+such as `www.webgoat.local` and `www.webwolf.local` to the host machine and
+set the corresponding application URL configuration as required.
+
+```shell
+docker compose logs --follow webgoat
+docker compose down
+docker compose down -v  # also remove the disposable lesson database
+```
+
+## Evidence capture
+
+Record the exact commit and commands used for the report:
+
+```shell
+mkdir -p evidence/generated
+git rev-parse HEAD | tee evidence/generated/commit.txt
+docker compose config > evidence/generated/compose-config.txt
+docker compose ps > evidence/generated/compose-ps.txt
+curl --fail http://127.0.0.1:8080/WebGoat/actuator/health \
+  > evidence/generated/webgoat-health.json
+```
