@@ -1,45 +1,60 @@
- # ---------------------------------------------------------
-# DAY 1 TASK: Base DevSecOps Pipeline & Build/Test Job
-# ---------------------------------------------------------
+ 
+# DevSecOps Pipeline for IE3142 WebGoat Assignment
+# This workflow runs automatically on every push and pull request to main/develop
+# It performs security checks and automated testing
 
-# Pipeline Name
 name: DevSecOps Pipeline
 
-# Pipeline Triggers (When to run the pipeline)
 on:
+  # Trigger on push to main, develop, or any feature/* branch
   push:
-    # Runs when code is pushed to your feature branch or main
-    branches: [ "it24100822-member-4-devsecops", "main" ]
+    branches: [main, develop, "feature/**"]
+  # Trigger on pull requests to main or develop
   pull_request:
-    # Runs when a pull request is created for main branch
-    branches: [ "main" ]
+    branches: [main, develop]
+  # Allow manual trigger from GitHub UI
+  workflow_dispatch:
 
-# Pipeline Jobs
+# Minimal permissions: give jobs only what they need (principle of least privilege)
+permissions:
+  contents: read              # Can read code
+  security-events: write      # Can upload security scan results
+  actions: read               # Can read workflow status
+
+# Prevent multiple runs of this workflow on the same branch
+concurrency:
+  group: devsecops-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  JAVA_VERSION: "25"
+  IMAGE_NAME: ie3142-webgoat
+
 jobs:
-  # Job 1: Build the project and run unit tests
-  build-and-test:
-    name: Build & Unit Tests
-    # Runner environment (Latest Ubuntu Linux runner)
+  # JOB 1: Build and run unit tests
+  build-test:
+    name: Build and unit tests
     runs-on: ubuntu-latest
-
-    # Sequence of tasks/steps in this job
+    timeout-minutes: 35
     steps:
-      # Step 1: Checkout repository code to the runner
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      # Step 2: Set up Java Development Kit (JDK 25)
-      - name: Set up JDK 25
-        uses: actions/setup-java@v3
+      # Step 1: Download the code from the repository
+      - uses: actions/checkout@v4
         with:
-          # Target Java version
-          java-version: '25'
-          # JDK distribution provider
-          distribution: 'temurin'
-          # Cache Maven dependencies to speed up future builds
-          cache: maven
-
-      # Step 3: Build application and compile unit tests using Maven
-      - name: Build with Maven
-        # Run Maven wrapper command (clean and compile tests)
-        run: ./mvnw --batch-mode --no-transfer-progress clean test-compile
+          fetch-depth: 0  # Get full history for analysis
+      # Step 2: Install Java (required for building)
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: maven  # Cache Maven dependencies to speed up builds
+      # Step 3: Compile and test the application
+      - name: Build and test
+        run: ./mvnw --batch-mode --no-transfer-progress clean test
+      # Step 4: Save test results as artifacts (visible in GitHub UI)
+      - name: Upload test reports
+        if: always()  # Run even if tests fail
+        uses: actions/upload-artifact@v4
+        with:
+          name: maven-test-reports
+          path: "**/target/surefire-reports/**"
+          if-no-files-found: warn
