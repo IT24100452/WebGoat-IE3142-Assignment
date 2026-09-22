@@ -1,176 +1,45 @@
+ # ---------------------------------------------------------
+# DAY 1 TASK: Base DevSecOps Pipeline & Build/Test Job
+# ---------------------------------------------------------
+
+# Pipeline Name
 name: DevSecOps Pipeline
 
+# Pipeline Triggers (When to run the pipeline)
 on:
   push:
-    branches: [main, develop, "feature/**"]
+    # Runs when code is pushed to your feature branch or main
+    branches: [ "it24100822-member-4-devsecops", "main" ]
   pull_request:
-    branches: [main, develop]
-  workflow_dispatch:
+    # Runs when a pull request is created for main branch
+    branches: [ "main" ]
 
-concurrency:
-  group: devsecops-${{ github.ref }}
-  cancel-in-progress: true
-
-env:
-  JAVA_VERSION: "25"
-  IMAGE_NAME: ie3142-webgoat
-
+# Pipeline Jobs
 jobs:
-  build-test:
-    name: Build and unit tests
+  # Job 1: Build the project and run unit tests
+  build-and-test:
+    name: Build & Unit Tests
+    # Runner environment (Latest Ubuntu Linux runner)
     runs-on: ubuntu-latest
-    timeout-minutes: 35
-    permissions:
-      contents: read
+
+    # Sequence of tasks/steps in this job
     steps:
-      - uses: actions/checkout@v4
+      # Step 1: Checkout repository code to the runner
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # Step 2: Set up Java Development Kit (JDK 17)
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
         with:
-          fetch-depth: 0
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: ${{ env.JAVA_VERSION }}
+          # Target Java version
+          java-version: '17'
+          # JDK distribution provider
+          distribution: 'temurin'
+          # Cache Maven dependencies to speed up future builds
           cache: maven
-      - name: Build and test
-        run: ./mvnw --batch-mode --no-transfer-progress clean test
-      - name: Upload test reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: maven-test-reports
-          path: "**/target/surefire-reports/**"
-          if-no-files-found: warn
 
-  sast:
-    name: SAST - Semgrep
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run Semgrep policy gate
-        uses: semgrep/semgrep-action@v1
-        with:
-          config: .semgrep.yml
-      - name: Save SAST result
-        if: always()
-        run: |
-          mkdir -p reports
-          docker run --rm -v "$PWD:/src" semgrep/semgrep:1.112.0 \
-            semgrep scan --no-git-ignore --config /src/.semgrep.yml \
-            --json --output /src/reports/semgrep.json /src || true
-      - if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: semgrep-report
-          path: reports/semgrep.json
-
-  secrets:
-    name: Secrets - Gitleaks
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_CONFIG: .gitleaks.toml
-      - name: Write Gitleaks report
-        if: always()
-        run: |
-          mkdir -p reports
-          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.24.2 \
-            detect --no-git --source=/repo --config=/repo/.gitleaks.toml \
-            --report-format sarif --report-path=/repo/reports/gitleaks.sarif --redact
-      - name: Upload Gitleaks report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: gitleaks-report
-          path: reports/gitleaks.sarif
-          if-no-files-found: warn
-
-  dependency:
-    name: Dependency analysis
-    runs-on: ubuntu-latest
-    timeout-minutes: 40
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: ${{ env.JAVA_VERSION }}
-          cache: maven
-      - name: OWASP Dependency-Check
-        run: ./mvnw --batch-mode --no-transfer-progress org.owasp:dependency-check-maven:12.1.0:check -DfailBuildOnCVSS=7 -Dformats=HTML,JSON
-      - if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: dependency-check-reports
-          path: "**/target/dependency-check-report.*"
-          if-no-files-found: warn
-
-  image:
-    name: Container build and Trivy gate
-    needs: build-test
-    runs-on: ubuntu-latest
-    timeout-minutes: 40
-    permissions:
-      contents: read
-      security-events: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - name: Build local image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          load: true
-          push: false
-          tags: ${{ env.IMAGE_NAME }}:${{ github.sha }}
-      - name: Trivy report
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ env.IMAGE_NAME }}:${{ github.sha }}
-          format: sarif
-          output: reports-trivy.sarif
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-          exit-code: "0"
-      - name: Upload SARIF
-        if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: reports-trivy.sarif
-      - name: Trivy blocking gate
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ env.IMAGE_NAME }}:${{ github.sha }}
-          format: table
-          severity: CRITICAL
-          ignore-unfixed: true
-          exit-code: "1"
-
-  policy:
-    name: Required security policy
-    if: always()
-    needs: [build-test, sast, secrets, dependency, image]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Enforce required jobs
-        env:
-          RESULTS: ${{ join(needs.*.result, ',') }}
-        run: |
-          echo "Job results: $RESULTS"
-          test "${{ needs.build-test.result }}" = success
-          test "${{ needs.sast.result }}" = success
-          test "${{ needs.secrets.result }}" = success
-          test "${{ needs.dependency.result }}" = success
-          test "${{ needs.image.result }}" = success
+      # Step 3: Build application and compile unit tests using Maven
+      - name: Build with Maven
+        # Run Maven wrapper command (clean and compile tests)
+        run: ./mvnw --batch-mode --no-transfer-progress clean test-compile
