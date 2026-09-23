@@ -58,3 +58,47 @@ jobs:
           name: maven-test-reports
           path: "**/target/surefire-reports/**"
           if-no-files-found: warn
+
+   
+  # JOB 2: SAST (Static Application Security Testing) with Semgrep
+  # Semgrep analyzes your code for security vulnerabilities WITHOUT running it
+  sast:
+    name: SAST - Semgrep
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      # Step 1: Run Semgrep to find security issues in code
+      - name: Run Semgrep policy gate
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: .semgrep.yml  # Use the security rules from .semgrep.yml
+      # Step 2: Export detailed SAST report as JSON (for later analysis)
+      - name: Save SAST result
+        if: always()
+        run: |
+          mkdir -p reports
+          docker run --rm -v "$PWD:/src" semgrep/semgrep semgrep --config /src/.semgrep.yml --json --output /src/reports/semgrep.json /src || true
+      # Step 3: Upload the report as a GitHub artifact
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: semgrep-report
+          path: reports/semgrep.json
+
+  # JOB 3: SECRET SCANNING with Gitleaks
+  # Gitleaks scans the repository history for accidentally committed secrets
+  # (passwords, API keys, tokens, etc.)
+  secrets:
+    name: Secrets - Gitleaks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Get full history to scan all commits
+      # Step 1: Run Gitleaks to find secrets
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # GitHub provides this automatically
+          GITLEAKS_CONFIG: .gitleaks.toml            # Use our custom Gitleaks rules
