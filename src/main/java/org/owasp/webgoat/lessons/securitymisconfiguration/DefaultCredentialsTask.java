@@ -17,7 +17,15 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Task demonstrating exploitation of default credentials. */
+/**
+ * Task demonstrating exploitation of default credentials.
+ * 
+ * SECURITY LESSON:
+ * Many applications come with default credentials (e.g., admin/admin, admin/password).
+ * If these are not changed during setup, attackers can gain immediate access.
+ * This task shows INSECURE behavior where default credentials are accepted.
+ * Your job is to modify this to REJECT default credentials and only accept proper authentication.
+ */
 @RestController
 @AssignmentHints({
     "securitymisconfiguration.task1.hint1",
@@ -25,6 +33,7 @@ import org.springframework.web.bind.annotation.RestController;
 })
 public class DefaultCredentialsTask implements AssignmentEndpoint {
 
+  // These are hardcoded default credentials (NOT secure in real applications)
   private static final String DEFAULT_USERNAME = "admin";
   private static final String DEFAULT_PASSWORD = "admin";
 
@@ -36,21 +45,9 @@ public class DefaultCredentialsTask implements AssignmentEndpoint {
       @RequestParam(value = "username", required = false) String username,
       @RequestParam(value = "password", required = false) String password) {
 
+    // Check if username or password is empty
     if (StringUtils.isBlank(username) || StringUtils.isBlank(password)) {
       return failed(this)
           .feedback("securitymisconfiguration.task1.failure.blank")
           .build();
     }
-
-    if (DEFAULT_USERNAME.equals(username.trim()) && DEFAULT_PASSWORD.equals(password)) {
-      return success(this)
-          .feedback("securitymisconfiguration.task1.success")
-          .output("User profile: staging admin (no MFA)")
-          .build();
-    }
-
-    return failed(this)
-        .feedback("securitymisconfiguration.task1.failure.invalid")
-        .build();
-  }
-}
