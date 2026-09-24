@@ -51,3 +51,20 @@ public class DefaultCredentialsTask implements AssignmentEndpoint {
           .feedback("securitymisconfiguration.task1.failure.blank")
           .build();
     }
+  // SECURITY ISSUE: This accepts admin/admin as valid credentials!
+    // In a real application, default credentials should be:
+    // 1. Changed during deployment
+    // 2. Never accepted on login
+    // 3. Logged and alerted (potential attack)
+    if (DEFAULT_USERNAME.equals(username.trim()) && DEFAULT_PASSWORD.equals(password)) {
+      return success(this)
+          .feedback("securitymisconfiguration.task1.success")
+          .output("User profile: staging admin (no MFA)")
+          .build();
+    }
+
+    return failed(this)
+        .feedback("securitymisconfiguration.task1.failure.invalid")
+        .build();
+  }
+}
