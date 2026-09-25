@@ -1,0 +1,10 @@
+title = "IE3142 Gitleaks configuration"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Only the checked-in environment template is allowlisted"
+paths = [
+  '''(^|/)\.env\.example$'''
+]
