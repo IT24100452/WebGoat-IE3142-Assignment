@@ -171,3 +171,24 @@ jobs:
           severity: CRITICAL
           ignore-unfixed: true
           exit-code: "1"  # EXIT CODE 1 = FAIL the job if CRITICAL vulnerabilities are found
+
+    # FINAL JOB: SECURITY POLICY ENFORCEMENT
+  # This job ensures ALL security checks pass before allowing a merge
+  policy:
+    name: Required security policy
+    if: always()  # Run even if other jobs fail
+    needs: [build-test, sast, secrets, dependency, image]  # Depend on all security jobs
+    runs-on: ubuntu-latest
+    steps:
+      # Step 1: Check that all required security jobs passed
+      - name: Enforce required jobs
+        env:
+          RESULTS: ${{ join(needs.*.result, ',') }}
+        run: |
+          echo "Job results: $RESULTS"
+          # All of these jobs must have status "success"
+          test "${{ needs.build-test.result }}" = success
+          test "${{ needs.sast.result }}" = success
+          test "${{ needs.secrets.result }}" = success
+          test "${{ needs.dependency.result }}" = success
+          test "${{ needs.image.result }}" = success
