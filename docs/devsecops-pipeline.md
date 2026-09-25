@@ -1,4 +1,4 @@
-# DevSecOps pipeline
+ # DevSecOps pipeline
 
 The `DevSecOps Pipeline` workflow runs on pushes to `main`, `develop`, and
 feature branches, and on pull requests targeting `main` or `develop`.
@@ -31,7 +31,4 @@ docker run --rm \
   -v "$PWD/../gitleaks-demo:/demo:ro" \
   zricethezav/gitleaks:v8.24.2 \
   detect --no-git --source=/demo --redact --exit-code 1
-```
-
-The expected result is a non-zero exit code. Remove the temporary fixture
-afterward. The CI workflow itself contains no intentional failing fixture.
+ 
