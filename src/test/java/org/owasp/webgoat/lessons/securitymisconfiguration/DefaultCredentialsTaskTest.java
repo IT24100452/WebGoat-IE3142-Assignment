@@ -36,10 +36,10 @@ class DefaultCredentialsTaskTest {
   }
 
   @Test
-  void shouldSucceedWithDefaultCredentials() {
+  void shouldRejectDefaultCredentials() {
     AttackResult result = task.login("admin", "admin");
 
-    assertThat(result.assignmentSolved()).isTrue();
-    assertThat(result.getFeedback()).isEqualTo("securitymisconfiguration.task1.success");
+    assertThat(result.assignmentSolved()).isFalse();
+    assertThat(result.getFeedback()).isEqualTo("securitymisconfiguration.task1.failure.invalid");
   }
 }
