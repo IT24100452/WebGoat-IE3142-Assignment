@@ -90,6 +90,16 @@ public class FileServer {
     try (InputStream is = multipartFile.getInputStream()) {
       var originalFilename = multipartFile.getOriginalFilename();
       var destinationFile = destinationDir.toPath().resolve(originalFilename).normalize();
+
+      if (!destinationFile.getParent().equals(destinationDir.toPath().toAbsolutePath())
+          && !destinationFile.getParent().equals(destinationDir.toPath())) {
+        log.warn("Rejected upload with path component from {}", username);
+        return new ModelAndView(
+            new RedirectView("files", true),
+            new ModelMap().addAttribute("uploadSuccess", NOTHING_TO_UPLOAD));
+      }
+
+
       Files.deleteIfExists(destinationFile);
       Files.copy(is, destinationFile);
     }
