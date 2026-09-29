@@ -67,13 +67,14 @@ class JWTTokenTest {
 
     assertThat(token.getHeader()).contains("\"alg\" : \"HS256\"");
     assertThat(token.getPayload()).contains("{\"te");
+    assertThat(token.isSignatureValid()).isFalse();
   }
 
   @Test
   void onlyEncodeWhenHeaderOrPayloadIsPresent() {
     var token = JWTToken.encode("", "", "");
 
-    assertThat(token.getEncoded()).isNullOrEmpty();
+    assertThat(token.getEncoded()).isNullOrEmpty();  //added assertion correction
   }
 
   @Test
@@ -123,6 +124,24 @@ class JWTTokenTest {
     String wrongJwks = new JsonWebKeySet(otherKey).toJson(OutputControlLevel.PUBLIC_ONLY);
 
     var token = JWTToken.decode(compact, null, wrongJwks);
+
+    assertThat(token.isSignatureValid()).isFalse();
+  }
+
+  @Test
+  @SneakyThrows
+  void decodeTokenFailsWhenJwksKeyIdIsMissing() {
+    RsaJsonWebKey jwk = RsaJwkGenerator.generateJwk(2048);
+    jwk.setKeyId("signing-key");
+    JsonWebSignature jws = new JsonWebSignature();
+    jws.setPayload(toString(Map.of("scope", "read")));
+    jws.setKey(jwk.getPrivateKey());
+    jws.setAlgorithmHeaderValue(AlgorithmIdentifiers.RSA_USING_SHA256);
+    String compact = jws.getCompactSerialization();
+
+    var token =
+        JWTToken.decode(
+            compact, null, new JsonWebKeySet(jwk).toJson(OutputControlLevel.PUBLIC_ONLY));
 
     assertThat(token.isSignatureValid()).isFalse();
   }
