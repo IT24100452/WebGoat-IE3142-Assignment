@@ -4,9 +4,7 @@ title = "IE3142 Gitleaks configuration"
 useDefault = true
 
 [allowlist]
-description = "Documentation and verified synthetic fixtures only"
+description = "Only the checked-in environment template is allowlisted"
 paths = [
-  '''(^|/)docs/''',
-  '''(^|/)evidence/''',
   '''(^|/)\.env\.example$'''
 ]

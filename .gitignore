@@ -61,3 +61,18 @@ node_modules/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# Local configuration and security scan output
+.env
+.env.*
+!.env.example
+reports/
+evidence/private/
+*.pem
+*.key
+*.p12
+*.pfx
+.trivy/
+.semgrep/
+.gitleaks/
+dependency-check-data/
