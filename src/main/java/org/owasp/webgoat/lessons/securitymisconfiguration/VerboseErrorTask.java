@@ -46,7 +46,7 @@ public class VerboseErrorTask implements AssignmentEndpoint {
     return ResponseEntity.ok(stackTrace);
   }
 
-  @GetMapping(value = "/SecurityMisconfiguration/task2/config", produces = MediaType.APPLICATION_JSON_VALUE)
+@GetMapping(value = "/SecurityMisconfiguration/task2/config", produces = MediaType.APPLICATION_JSON_VALUE)
   public ResponseEntity<String> fetchConfig(@RequestParam(value = "token", required = false) String token) {
     if (LEAKED_TOKEN.equals(token)) {
       String json =
