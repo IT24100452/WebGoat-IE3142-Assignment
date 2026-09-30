@@ -88,7 +88,8 @@ public class FileServer {
     // DO NOT use multipartFile.transferTo(), see
     // https://stackoverflow.com/questions/60336929/java-nio-file-nosuchfileexception-when-file-transferto-is-called
     try (InputStream is = multipartFile.getInputStream()) {
-      var originalFilename = multipartFile.getOriginalFilename(); //Added IT24100500 for test
+      var originalFilename = multipartFile.getOriginalFilename(); 
+      //Added by IT24100500 to fix path traversal vulnerability
       var destinationFile = destinationDir.toPath().resolve(originalFilename).normalize();
       if (!destinationFile.getParent().equals(destinationDir.toPath().toAbsolutePath())
           && !destinationFile.getParent().equals(destinationDir.toPath())) {
