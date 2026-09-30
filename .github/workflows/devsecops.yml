@@ -1,0 +1,194 @@
+ 
+# DevSecOps Pipeline for IE3142 WebGoat Assignment
+# This workflow runs automatically on every push and pull request to main/develop
+# It performs security checks and automated testing
+
+name: DevSecOps Pipeline
+
+on:
+  # Trigger on push to main, develop, or any feature/* branch
+  push:
+    branches: [main, develop, "feature/**"]
+  # Trigger on pull requests to main or develop
+  pull_request:
+    branches: [main, develop]
+  # Allow manual trigger from GitHub UI
+  workflow_dispatch:
+
+# Minimal permissions: give jobs only what they need (principle of least privilege)
+permissions:
+  contents: read              # Can read code
+  security-events: write      # Can upload security scan results
+  actions: read               # Can read workflow status
+
+# Prevent multiple runs of this workflow on the same branch
+concurrency:
+  group: devsecops-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  JAVA_VERSION: "25"
+  IMAGE_NAME: ie3142-webgoat
+
+jobs:
+  # JOB 1: Build and run unit tests
+  build-test:
+    name: Build and unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      # Step 1: Download the code from the repository
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Get full history for analysis
+      # Step 2: Install Java (required for building)
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: maven  # Cache Maven dependencies to speed up builds
+      # Step 3: Compile and test the application
+      - name: Build and test
+        run: ./mvnw --batch-mode --no-transfer-progress clean test
+      # Step 4: Save test results as artifacts (visible in GitHub UI)
+      - name: Upload test reports
+        if: always()  # Run even if tests fail
+        uses: actions/upload-artifact@v4
+        with:
+          name: maven-test-reports
+          path: "**/target/surefire-reports/**"
+          if-no-files-found: warn
+
+   
+  # JOB 2: SAST (Static Application Security Testing) with Semgrep
+  # Semgrep analyzes your code for security vulnerabilities WITHOUT running it
+  sast:
+    name: SAST - Semgrep
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      # Step 1: Run Semgrep to find security issues in code
+      - name: Run Semgrep policy gate
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: .semgrep.yml  # Use the security rules from .semgrep.yml
+      # Step 2: Export detailed SAST report as JSON (for later analysis)
+      - name: Save SAST result
+        if: always()
+        run: |
+          mkdir -p reports
+          docker run --rm -v "$PWD:/src" semgrep/semgrep semgrep --config /src/.semgrep.yml --json --output /src/reports/semgrep.json /src || true
+      # Step 3: Upload the report as a GitHub artifact
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: semgrep-report
+          path: reports/semgrep.json
+
+  # JOB 3: SECRET SCANNING with Gitleaks
+  # Gitleaks scans the repository history for accidentally committed secrets
+  # (passwords, API keys, tokens, etc.)
+  secrets:
+    name: Secrets - Gitleaks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Get full history to scan all commits
+      # Step 1: Run Gitleaks to find secrets
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # GitHub provides this automatically
+          GITLEAKS_CONFIG: .gitleaks.toml            # Use our custom Gitleaks rules
+  
+  # JOB 4: DEPENDENCY SCANNING with OWASP Dependency-Check
+  # This finds known vulnerabilities in external libraries/dependencies
+  dependency:
+    name: Dependency analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: maven
+      # Step 1: Run Dependency-Check to scan for vulnerable libraries
+      # -DfailBuildOnCVSS=7 means the build fails if any vulnerability has CVSS score >= 7
+      - name: OWASP Dependency-Check
+        run: ./mvnw --batch-mode --no-transfer-progress org.owasp:dependency-check-maven:check -DfailBuildOnCVSS=7 -Dformats=HTML,JSON
+      # Step 2: Upload reports as artifacts
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-reports
+          path: "**/target/dependency-check-report.*"
+          if-no-files-found: warn
+
+  # JOB 5: CONTAINER SCANNING with Trivy
+  # Trivy scans the Docker image for vulnerabilities in the OS, libraries, and config
+  image:
+    name: Container build and Trivy gate
+    needs: build-test  # Wait for build-test job to complete first
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      # Step 1: Build the Docker image
+      - name: Build local image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true           # Keep image locally (don't push to Docker Hub)
+          push: false
+          tags: ${{ env.IMAGE_NAME }}:${{ github.sha }}
+      # Step 2: Scan the image with Trivy (generates report)
+      - name: Trivy report
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          format: sarif        # SARIF format is compatible with GitHub Security
+          output: reports-trivy.sarif
+          severity: HIGH,CRITICAL  # Only report HIGH and CRITICAL severity
+          ignore-unfixed: true     # Ignore vulnerabilities with no fix available
+          exit-code: "0"       # Don't fail on vulnerabilities (we upload a report instead)
+      # Step 3: Upload the security report to GitHub
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: reports-trivy.sarif
+      # Step 4: Run the blocking gate - FAIL the build if CRITICAL vulnerabilities exist with fixes
+      - name: Trivy blocking gate
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          format: table
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"  # EXIT CODE 1 = FAIL the job if CRITICAL vulnerabilities are found
+
+    # FINAL JOB: SECURITY POLICY ENFORCEMENT
+  # This job ensures ALL security checks pass before allowing a merge
+  policy:
+    name: Required security policy
+    if: always()  # Run even if other jobs fail
+    needs: [build-test, sast, secrets, dependency, image]  # Depend on all security jobs
+    runs-on: ubuntu-latest
+    steps:
+      # Step 1: Check that all required security jobs passed
+      - name: Enforce required jobs
+        env:
+          RESULTS: ${{ join(needs.*.result, ',') }}
+        run: |
+          echo "Job results: $RESULTS"
+          # All of these jobs must have status "success"
+          test "${{ needs.build-test.result }}" = success
+          test "${{ needs.sast.result }}" = success
+          test "${{ needs.secrets.result }}" = success
+          test "${{ needs.dependency.result }}" = success
+          test "${{ needs.image.result }}" = success
