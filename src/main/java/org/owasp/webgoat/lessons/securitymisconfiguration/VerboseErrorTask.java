@@ -26,16 +26,22 @@ import org.springframework.web.bind.annotation.RestController;
 })
 public class VerboseErrorTask implements AssignmentEndpoint {
 
-     @GetMapping(value = "/SecurityMisconfiguration/task2/trigger", produces = MediaType.TEXT_PLAIN_VALUE)
+  @GetMapping(
+      value = "/SecurityMisconfiguration/task2/trigger",
+      produces = MediaType.TEXT_PLAIN_VALUE)
   public ResponseEntity<String> triggerError() {
-    // UPDATED: Return a generic error; do not expose stack traces or configuration.
-    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Request failed");
+    // UPDATED: Never return stack traces, environment settings, or secrets.
+    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+        .contentType(MediaType.TEXT_PLAIN)
+        .body("An unexpected error occurred.");
   }
 
-  @GetMapping(value = "/SecurityMisconfiguration/task2/config", produces = MediaType.APPLICATION_JSON_VALUE)
+  @GetMapping(
+      value = "/SecurityMisconfiguration/task2/config",
+      produces = MediaType.APPLICATION_JSON_VALUE)
   public ResponseEntity<String> fetchConfig(
       @RequestParam(value = "token", required = false) String token) {
-    // UPDATED: Never use a leaked/static token to grant access to configuration.
+    // UPDATED: A supplied token must not grant access to configuration.
     return ResponseEntity.status(HttpStatus.FORBIDDEN).body("ACCESS DENIED");
   }
 
@@ -49,7 +55,7 @@ public class VerboseErrorTask implements AssignmentEndpoint {
           .build();
     }
 
-    // UPDATED: There is no hard-coded leaked token that can mark this task successful.
+    // UPDATED: No hard-coded or leaked token can authorize this operation.
     return failed(this)
         .feedback("securitymisconfiguration.task2.failure.invalid")
         .build();
