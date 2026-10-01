@@ -19,12 +19,12 @@ RUN \
   # Create a non-root user 'webgoat' for security (containers should not run as root)
   useradd -ms /bin/bash webgoat && \
   # Create the WebGoat data directory
-  mkdir -p /home/webgoat/.webgoat-2026.2-SNAPSHOT && \
+  mkdir -p /home/webgoat/data && \
   # Allow group members to access the home directory (for better container security)
   chgrp -R 0 /home/webgoat && \
   chmod -R g=u /home/webgoat && \
   # Ensure the data directory is writable
-  chmod 777 /home/webgoat/.webgoat-2026.2-SNAPSHOT
+  chmod 770 /home/webgoat/data
 
 # Switch to the non-root 'webgoat' user for all subsequent commands
 USER webgoat
@@ -47,6 +47,8 @@ WORKDIR /home/webgoat
 # The --add-opens flags allow lessons that need to access internal Java classes
 ENTRYPOINT [ "java", \
    "-Duser.home=/home/webgoat", \
+   "-Dwebgoat.server.directory=/home/webgoat/data/", \
+   "-Dwebgoat.user.directory=/home/webgoat/data/", \
    "-Dfile.encoding=UTF-8", \
    "--add-opens", "java.base/java.lang=ALL-UNNAMED", \
    "--add-opens", "java.base/java.util=ALL-UNNAMED", \

@@ -1,0 +1,10 @@
+title = "WebGoat Gitleaks configuration"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "The checked-in environment template contains only example values"
+paths = [
+  '''(^|/)\.env\.example$'''
+]

@@ -10,6 +10,9 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import javax.xml.XMLConstants;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -27,7 +30,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
-import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
 
 @RestController
 @Slf4j
@@ -39,7 +42,7 @@ public class Salaries {
   @PostConstruct
   public void copyFiles() {
     ClassPathResource classPathResource = new ClassPathResource("lessons/employees.xml");
-    File targetDirectory = new File(webGoatHomeDirectory, "/ClientSideFiltering");
+    File targetDirectory = new File(webGoatHomeDirectory, "ClientSideFiltering");
     if (!targetDirectory.exists()) {
       targetDirectory.mkdir();
     }
@@ -64,7 +67,16 @@ public class Salaries {
     java.util.Map<String, Object> employeeJson = new HashMap<>();
 
     try (InputStream is = new FileInputStream(d)) {
-      InputSource inputSource = new InputSource(is);
+      DocumentBuilderFactory documentFactory = DocumentBuilderFactory.newInstance();
+      documentFactory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+      documentFactory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+      documentFactory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+      documentFactory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+      documentFactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+      documentFactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+      documentFactory.setXIncludeAware(false);
+      documentFactory.setExpandEntityReferences(false);
+      var document = documentFactory.newDocumentBuilder().parse(is);
 
       StringBuilder sb = new StringBuilder();
 
@@ -75,7 +87,7 @@ public class Salaries {
       sb.append("/Employees/Employee/Salary ");
 
       String expression = sb.toString();
-      nodes = (NodeList) path.evaluate(expression, inputSource, XPathConstants.NODESET);
+      nodes = (NodeList) path.evaluate(expression, document, XPathConstants.NODESET);
       for (int i = 0; i < nodes.getLength(); i++) {
         if (i % columns == 0) {
           employeeJson = new HashMap<>();
@@ -84,7 +96,7 @@ public class Salaries {
         Node node = nodes.item(i);
         employeeJson.put(node.getNodeName(), node.getTextContent());
       }
-    } catch (XPathExpressionException e) {
+    } catch (XPathExpressionException | ParserConfigurationException | SAXException e) {
       log.error("Unable to parse xml", e);
     } catch (IOException e) {
       log.error("Unable to read employees.xml at location: '{}'", d);

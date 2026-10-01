@@ -12,6 +12,10 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
+import java.nio.file.LinkOption;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileTime;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -33,6 +37,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.view.RedirectView;
+import java.util.regex.Pattern;
 
 /** Controller for uploading a file */
 @Controller
@@ -47,6 +52,8 @@ public class FileServer {
 
   static final String NOTHING_TO_UPLOAD = "Nothing to upload";
   static final String UPLOAD_TOO_LARGE = "File is too large to upload";
+
+  private static final Pattern ENCODED_PATH_CHARACTER = Pattern.compile("(?i)%(?:2e|2f|5c|25)");
 
   @Value("${webwolf.fileserver.location}")
   private String fileLocation;
@@ -83,20 +90,77 @@ public class FileServer {
           new ModelMap().addAttribute("uploadSuccess", NOTHING_TO_UPLOAD));
     }
 
-    var destinationDir = new File(fileLocation, username);
-    destinationDir.mkdirs();
-    // DO NOT use multipartFile.transferTo(), see
-    // https://stackoverflow.com/questions/60336929/java-nio-file-nosuchfileexception-when-file-transferto-is-called
-    try (InputStream is = multipartFile.getInputStream()) {
-      var destinationFile = destinationDir.toPath().resolve(multipartFile.getOriginalFilename());
-      Files.deleteIfExists(destinationFile);
-      Files.copy(is, destinationFile);
+    var originalFilename = multipartFile.getOriginalFilename();
+    if (!isSafeFilename(originalFilename) || !isSafePathComponent(username)) {
+      log.warn("Rejected upload with path component from {}", username);
+      return uploadRejected();
     }
-    log.debug("File saved to {}", new File(destinationDir, multipartFile.getOriginalFilename()));
+
+    try {
+      Path configuredRoot = Path.of(fileLocation).toAbsolutePath().normalize();
+      Files.createDirectories(configuredRoot);
+      Path realRoot = configuredRoot.toRealPath();
+      Path destinationDir = realRoot.resolve(username).normalize();
+      if (!realRoot.equals(destinationDir.getParent())) {
+        return uploadRejected();
+      }
+      Files.createDirectories(destinationDir);
+      Path realDestinationDir = destinationDir.toRealPath();
+      if (!realRoot.equals(realDestinationDir.getParent())) {
+        return uploadRejected();
+      }
+
+      Path destinationFile = realDestinationDir.resolve(originalFilename).normalize();
+      if (!destinationFile.startsWith(realDestinationDir)
+          || !realDestinationDir.equals(destinationFile.getParent())
+          || Files.isSymbolicLink(destinationFile)) {
+        return uploadRejected();
+      }
+
+      try (InputStream is = multipartFile.getInputStream();
+          var output =
+              Files.newOutputStream(
+                  destinationFile,
+                  StandardOpenOption.CREATE,
+                  StandardOpenOption.TRUNCATE_EXISTING,
+                  StandardOpenOption.WRITE,
+                  LinkOption.NOFOLLOW_LINKS)) {
+        is.transferTo(output);
+      }
+      log.debug("File saved to {}", destinationFile);
+    } catch (IOException | InvalidPathException e) {
+      log.warn("Unable to store uploaded file for {}", username, e);
+      return uploadRejected();
+    }
 
     return new ModelAndView(
         new RedirectView("files", true),
         new ModelMap().addAttribute("uploadSuccess", UPLOAD_SUCCESSFUL));
+  }
+
+  private static boolean isSafePathComponent(String value) {
+    return value != null
+        && !value.isBlank()
+        && !".".equals(value)
+        && !"..".equals(value)
+        && value.indexOf('/') < 0
+        && value.indexOf('\\') < 0
+        && value.chars().noneMatch(Character::isISOControl);
+  }
+
+  private static boolean isSafeFilename(String filename) {
+    return isSafePathComponent(filename)
+        && !ENCODED_PATH_CHARACTER.matcher(filename).find()
+        && filename.indexOf(':') < 0
+        && !filename.endsWith(".")
+        && !filename.endsWith(" ")
+        && !filename.matches("(?i)^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\\..*)?$");
+  }
+
+  private static ModelAndView uploadRejected() {
+    return new ModelAndView(
+        new RedirectView("files", true),
+        new ModelMap().addAttribute("uploadSuccess", NOTHING_TO_UPLOAD));
   }
 
   @GetMapping(value = "/files")
