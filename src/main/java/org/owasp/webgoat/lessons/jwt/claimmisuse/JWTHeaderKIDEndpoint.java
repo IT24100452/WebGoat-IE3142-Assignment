@@ -7,7 +7,6 @@ package org.owasp.webgoat.lessons.jwt.claimmisuse;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
-import java.sql.ResultSet;
 import java.sql.SQLException;
 
 import org.apache.commons.lang3.StringUtils;
@@ -31,12 +30,12 @@ import io.jsonwebtoken.impl.TextCodec;
 
 @RestController
 @AssignmentHints({
-  "jwt-kid-hint1",
-  "jwt-kid-hint2",
-  "jwt-kid-hint3",
-  "jwt-kid-hint4",
-  "jwt-kid-hint5",
-  "jwt-kid-hint6"
+    "jwt-kid-hint1",
+    "jwt-kid-hint2",
+    "jwt-kid-hint3",
+    "jwt-kid-hint4",
+    "jwt-kid-hint5",
+    "jwt-kid-hint6"
 })
 public class JWTHeaderKIDEndpoint implements AssignmentEndpoint {
   private final LessonDataSource dataSource;
@@ -49,57 +48,78 @@ public class JWTHeaderKIDEndpoint implements AssignmentEndpoint {
   public @ResponseBody String follow(@PathVariable("user") String user) {
     if ("Jerry".equals(user)) {
       return "Following yourself seems redundant";
-    } else {
-      return "You are now following Tom";
     }
+    return "You are now following Tom";
   }
 
   @PostMapping("/JWT/kid/delete")
   public @ResponseBody AttackResult resetVotes(@RequestParam("token") String token) {
     if (StringUtils.isEmpty(token)) {
       return failed(this).feedback("jwt-invalid-token").build();
-    } else {
-      try {
-        final String[] errorMessage = {null};
-        Jwt jwt =
-            Jwts.parser()
-                .setSigningKeyResolver(
-                    new SigningKeyResolverAdapter() {
-                      @Override
-                      public byte[] resolveSigningKeyBytes(JwsHeader header, Claims claims) {
-                        final String kid = (String) header.get("kid");
-                        try (var connection = dataSource.getConnection()) {
-                          ResultSet rs =
-                              connection
-                                  .createStatement()
-                                  .executeQuery(
-                                      "SELECT key FROM jwt_keys WHERE id = '" + kid + "'");
-                          while (rs.next()) {
-                            return TextCodec.BASE64.decode(rs.getString(1));
-                          }
-                        } catch (SQLException e) {
-                          errorMessage[0] = e.getMessage();
-                        }
+    }
+
+    try {
+      Jwt jwt =
+          Jwts.parser()
+              .setSigningKeyResolver(
+                  new SigningKeyResolverAdapter() {
+                    @Override
+                    public byte[] resolveSigningKeyBytes(JwsHeader header, Claims claims) {
+                      // UPDATED: Reject any signing algorithm other than the expected one.
+                      if (!"HS512".equals(header.getAlgorithm())) {
                         return null;
                       }
-                    })
-                .parseClaimsJws(token);
-        if (errorMessage[0] != null) {
-          return failed(this).output(errorMessage[0]).build();
-        }
-        Claims claims = (Claims) jwt.getBody();
-        String username = (String) claims.get("username");
-        if ("Jerry".equals(username)) {
-          return failed(this).feedback("jwt-final-jerry-account").build();
-        }
-        if ("Tom".equals(username)) {
-          return success(this).build();
-        } else {
-          return failed(this).feedback("jwt-final-not-tom").build();
-        }
-      } catch (JwtException e) {
-        return failed(this).feedback("jwt-invalid-token").output(e.toString()).build();
+
+                      Object kidValue = header.get("kid");
+                      if (!(kidValue instanceof String)) {
+                        return null;
+                      }
+
+                      String kid = (String) kidValue;
+
+                      // UPDATED: Reject empty or malformed key identifiers.
+                      if (kid.isBlank()
+                          || kid.length() > 128
+                          || !kid.matches("[A-Za-z0-9._-]+")) {
+                        return null;
+                      }
+
+                      try (var connection = dataSource.getConnection();
+                          var statement =
+                              connection.prepareStatement(
+                                  "SELECT key FROM jwt_keys WHERE id = ?")) {
+                        // UPDATED: Bind kid as a SQL value, not SQL syntax.
+                        statement.setString(1, kid);
+
+                        try (var resultSet = statement.executeQuery()) {
+                          if (!resultSet.next()) {
+                            return null;
+                          }
+
+                          String storedKey = resultSet.getString(1);
+                          return storedKey == null ? null : TextCodec.BASE64.decode(storedKey);
+                        }
+                      } catch (SQLException e) {
+                        // UPDATED: Do not expose database details through the response.
+                        throw new IllegalStateException("Unable to resolve signing key", e);
+                      }
+                    }
+                  })
+              .parseClaimsJws(token);
+
+      Claims claims = (Claims) jwt.getBody();
+      String username = claims.get("username", String.class);
+
+      if ("Jerry".equals(username)) {
+        return failed(this).feedback("jwt-final-jerry-account").build();
       }
+      if ("Tom".equals(username)) {
+        return success(this).build();
+      }
+      return failed(this).feedback("jwt-final-not-tom").build();
+    } catch (JwtException | IllegalArgumentException | IllegalStateException e) {
+      // UPDATED: Do not disclose token parser, database, or key-resolution details.
+      return failed(this).feedback("jwt-invalid-token").build();
     }
   }
 }
