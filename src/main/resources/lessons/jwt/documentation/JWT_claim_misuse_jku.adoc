@@ -80,8 +80,7 @@ _(Key IDs)_  of `example` and `example2`.
 
 To prevent JWT claim misuse with JKU, developers and security professionals should follow these best practices:
 
-- **Whitelist**: utilize a whitelist to verify whether the received JKU from the token is present in the allowed list.
-Be careful when comparing urls by using String comparison functions, use a whitelist instead and validate the entire url from the `jku`.
+- **Trusted key sources**: use only a configured HTTPS JWKS source. Never fetch keys from an arbitrary URL supplied by a token.
 
 - **Static keys**: Avoid using JKU with public keys hosted on external endpoints.
 Instead, use static keys that are securely managed and updated regularly.
@@ -93,3 +92,5 @@ Instead, use static keys that are securely managed and updated regularly.
 - **Audit and monitoring**: Regularly audit JWT usage, monitor for suspicious activity, and implement anomaly detection mechanisms.
 
 - **Security testing**: Regularly perform security testing, including penetration testing and code reviews, to identify and remediate potential vulnerabilities.
+
+The WebGoat endpoint fails closed unless `webgoat.jwt.jwks-url` is configured with a trusted HTTPS URL. The token's `jku` must exactly match that configured URL; HTTP sources and token-controlled destinations are rejected.

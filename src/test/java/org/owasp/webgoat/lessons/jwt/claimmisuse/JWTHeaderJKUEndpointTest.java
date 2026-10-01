@@ -4,93 +4,119 @@
  */
 package org.owasp.webgoat.lessons.jwt.claimmisuse;
 
-import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
-import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options;
+import static io.jsonwebtoken.SignatureAlgorithm.HS256;
 import static io.jsonwebtoken.SignatureAlgorithm.RS256;
+import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.github.tomakehurst.wiremock.WireMockServer;
-import com.github.tomakehurst.wiremock.client.WireMock;
+import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options;
 import io.jsonwebtoken.Jwts;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
-import java.security.interfaces.RSAPublicKey;
 import java.util.HashMap;
 import java.util.Map;
-import org.jose4j.jwk.JsonWebKeySet;
-import org.jose4j.jwk.RsaJsonWebKey;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.owasp.webgoat.container.assignments.AttackResult;
 import org.owasp.webgoat.container.plugins.LessonTest;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import static org.assertj.core.api.Assertions.assertThat;
 
 class JWTHeaderJKUEndpointTest extends LessonTest {
+  private static final String TRUSTED_JWKS_URL = "https://trusted.example/jwks";
+
   private KeyPair keyPair;
-  private WireMockServer webwolfServer;
-  private int port;
+  private WireMockServer jwksServer;
 
   @BeforeEach
-  public void setup() throws Exception {
+  void setup() throws Exception {
     this.mockMvc = MockMvcBuilders.webAppContextSetup(this.wac).build();
-
-    setupWebWolf();
-    this.keyPair = generateRsaKey();
-  }
-
-  private void setupWebWolf() {
-    this.webwolfServer = new WireMockServer(options().dynamicPort());
-    webwolfServer.start();
-    this.port = webwolfServer.port();
-  }
-
-  private KeyPair generateRsaKey() throws Exception {
     KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
     keyPairGenerator.initialize(2048);
-    return keyPairGenerator.generateKeyPair();
+    this.keyPair = keyPairGenerator.generateKeyPair();
+    this.jwksServer = new WireMockServer(options().dynamicPort());
+    this.jwksServer.start();
+  }
+
+  @AfterEach
+  void tearDown() {
+    this.jwksServer.stop();
   }
 
   @Test
-  void solve() throws Exception {
-    setupJsonWebKeySetInWebWolf();
-    var token = createTokenAndSignIt();
+  void failsClosedWhenNoTrustedJwksSourceIsConfigured() throws Exception {
+    String token = createRsaToken(untrustedUrl());
 
     mockMvc
         .perform(MockMvcRequestBuilders.post("/JWT/jku/delete").param("token", token).content(""))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.lessonCompleted", is(true)));
+        .andExpect(jsonPath("$.lessonCompleted", is(false)))
+        .andExpect(jsonPath("$.feedback", is(messages.getMessage("jwt-invalid-token"))));
+    jwksServer.verify(0, getRequestedFor(urlEqualTo("/jwks")));
   }
 
   @Test
-  @DisplayName("When JWKS is not present in WebWolf then the call should fail")
-  void shouldFailNotPresent() throws Exception {
-    var token = createTokenAndSignIt();
+  void rejectsTokenControlledUrlWhenASeparateTrustedSourceIsConfigured() {
+    JWTHeaderJKUEndpoint endpoint = new JWTHeaderJKUEndpoint(TRUSTED_JWKS_URL);
+    AttackResult result = endpoint.resetVotes(createRsaToken(untrustedUrl()));
 
-    mockMvc
-        .perform(MockMvcRequestBuilders.post("/JWT/jku/delete").param("token", token).content(""))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.lessonCompleted", is(false)));
+    assertThat(result.assignmentSolved()).isFalse();
+    assertThat(result.getFeedback()).isEqualTo("jwt-invalid-token");
+    jwksServer.verify(0, getRequestedFor(urlEqualTo("/jwks")));
   }
 
-  private String createTokenAndSignIt() {
+  @Test
+  void rejectsUnsupportedAlgorithmBeforeUsingConfiguredJwksSource() {
+    JWTHeaderJKUEndpoint endpoint = new JWTHeaderJKUEndpoint(TRUSTED_JWKS_URL);
+    String token = createHmacToken(TRUSTED_JWKS_URL);
+
+    AttackResult result = endpoint.resetVotes(token);
+
+    assertThat(result.assignmentSolved()).isFalse();
+    assertThat(result.getFeedback()).isEqualTo("jwt-invalid-token");
+  }
+
+  @Test
+  void rejectsConfiguredHttpJwksSource() {
+    String httpJwksUrl = untrustedUrl();
+    JWTHeaderJKUEndpoint endpoint = new JWTHeaderJKUEndpoint(httpJwksUrl);
+
+    AttackResult result = endpoint.resetVotes(createRsaToken(httpJwksUrl));
+
+    assertThat(result.assignmentSolved()).isFalse();
+    assertThat(result.getFeedback()).isEqualTo("jwt-invalid-token");
+    jwksServer.verify(0, getRequestedFor(urlEqualTo("/jwks")));
+  }
+
+  private String createRsaToken(String jku) {
     Map<String, Object> claims = new HashMap<>();
     claims.put("username", "Tom");
-    var token =
-        Jwts.builder()
-            .setHeaderParam("jku", "http://localhost:%d/files/jwks".formatted(port))
-            .setClaims(claims)
-            .signWith(RS256, this.keyPair.getPrivate())
-            .compact();
-    return token;
+    return Jwts.builder()
+        .setHeaderParam("jku", jku)
+        .setHeaderParam("kid", "key-1")
+        .setClaims(claims)
+        .signWith(RS256, this.keyPair.getPrivate())
+        .compact();
   }
 
-  private void setupJsonWebKeySetInWebWolf() {
-    var jwks = new JsonWebKeySet(new RsaJsonWebKey((RSAPublicKey) keyPair.getPublic()));
-    webwolfServer.stubFor(
-        WireMock.get(WireMock.urlMatching("/files/jwks"))
-            .willReturn(aResponse().withStatus(200).withBody(jwks.toJson())));
+  private String untrustedUrl() {
+    return "http://localhost:" + jwksServer.port() + "/jwks";
+  }
+
+  private String createHmacToken(String jku) {
+    Map<String, Object> claims = new HashMap<>();
+    claims.put("username", "Tom");
+    return Jwts.builder()
+        .setHeaderParam("jku", jku)
+        .setHeaderParam("kid", "key-1")
+        .setClaims(claims)
+        .signWith(HS256, "not-a-trusted-rsa-key")
+        .compact();
   }
 }

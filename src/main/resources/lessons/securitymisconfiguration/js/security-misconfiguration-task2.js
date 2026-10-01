@@ -3,12 +3,11 @@
   const configButton = document.getElementById('fetch-config');
   const debugOutput = document.getElementById('debug-output');
   const configOutput = document.getElementById('config-output');
-  const tokenField = document.getElementById('token');
 
   if (triggerButton) {
     triggerButton.addEventListener('click', async () => {
       triggerButton.disabled = true;
-      debugOutput.textContent = 'Loading stack trace...';
+      debugOutput.textContent = 'Requesting generic error response...';
       try {
         const response = await fetch(triggerButton.getAttribute('data-url'));
         const text = await response.text();
@@ -28,7 +27,6 @@
       configOutput.textContent = 'Querying /config ...';
       try {
         const url = new URL(configButton.getAttribute('data-url'), window.location.origin);
-        url.searchParams.set('token', tokenField.value || '');
         const response = await fetch(url, { method: 'GET' });
         const text = await response.text();
         configOutput.textContent = text;

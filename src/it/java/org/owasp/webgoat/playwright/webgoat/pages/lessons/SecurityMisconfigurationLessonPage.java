@@ -16,7 +16,6 @@ import org.owasp.webgoat.container.lessons.LessonName;
 
 public class SecurityMisconfigurationLessonPage extends LessonPage {
 
-  private static final Pattern TOKEN_PATTERN = Pattern.compile("SYSTEM_API_TOKEN=([\\w-]+)");
   private static final Pattern API_KEY_PATTERN =
       Pattern.compile("\"systemApiKey\"\s*:\s*\"([^\"]+)\"");
 
@@ -41,9 +40,11 @@ public class SecurityMisconfigurationLessonPage extends LessonPage {
     return getAssignmentOutput();
   }
 
-  public void triggerDebugLeak() {
+  public void triggerSafeError() {
     Page page = getPage();
-    page.getByRole(AriaRole.BUTTON, new GetByRoleOptions().setName("Trigger debug error")).click();
+    page.getByRole(
+            AriaRole.BUTTON, new GetByRoleOptions().setName("Trigger safe error response"))
+        .click();
     page.waitForTimeout(500); // allow fetch to complete
   }
 
@@ -51,17 +52,16 @@ public class SecurityMisconfigurationLessonPage extends LessonPage {
     return getPage().locator("#debug-output").textContent();
   }
 
-  public String extractTokenFromDebug() {
-    Matcher matcher = TOKEN_PATTERN.matcher(debugOutput());
-    if (matcher.find()) {
-      return matcher.group(1);
-    }
-    return "";
+  public String requestProtectedConfig() {
+    Page page = getPage();
+    page.getByRole(AriaRole.BUTTON, new GetByRoleOptions().setName("Request protected config")).click();
+    page.waitForTimeout(300);
+    return page.locator("#config-output").textContent();
   }
 
   public void submitTask2(String token) {
     Page page = getPage();
-    page.getByLabel("Leaked token").fill(token);
+    page.getByLabel("Token test").fill(token);
     page.getByRole(AriaRole.BUTTON, new GetByRoleOptions().setName("Submit token")).click();
   }
 

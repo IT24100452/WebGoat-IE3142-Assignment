@@ -21,6 +21,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
+import java.util.regex.Pattern;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import org.apache.commons.io.FilenameUtils;
@@ -37,37 +38,63 @@ import org.springframework.web.multipart.MultipartFile;
 @Getter
 public class ProfileUploadBase implements AssignmentEndpoint {
 
+  private static final Pattern ENCODED_PATH_CHARACTER = Pattern.compile("(?i)%(?:2e|2f|5c|25)");
+
   private final String webGoatHomeDirectory;
 
   public ProfileUploadBase(String webGoatHomeDirectory) {
     this.webGoatHomeDirectory = webGoatHomeDirectory;
   }
 
+  // The vulnerable lesson routes retain this path; ProfileUploadFix uses executeSafely.
   protected AttackResult execute(MultipartFile file, String fullName, String username) {
+    if (file.isEmpty()) {
+      return failed(this).feedback("path-traversal-profile-empty-file").build();
+    }
+    if (StringUtils.isEmpty(fullName)) {
+      return failed(this).feedback("path-traversal-profile-empty-name").build();
+    }
+
+    File uploadDirectory = cleanupAndCreateDirectoryForUser(username);
+
+    try {
+      var uploadedFile = new File(uploadDirectory, fullName);
+      uploadedFile.createNewFile();
+      FileCopyUtils.copy(file.getBytes(), uploadedFile);
+
+      if (attemptWasMade(uploadDirectory, uploadedFile)) {
+        return solvedIt(uploadedFile);
+      }
+      return informationMessage(this)
+          .feedback("path-traversal-profile-updated")
+          .feedbackArgs(uploadedFile.getAbsoluteFile())
+          .build();
+    } catch (IOException e) {
+      return failed(this).output(e.getMessage()).build();
+    }
+  }
+
+  protected AttackResult executeSafely(MultipartFile file, String fullName, String username) {
     if (file == null || file.isEmpty()) {
       return failed(this).feedback("path-traversal-profile-empty-file").build();
     }
     if (!StringUtils.hasLength(fullName)) {
       return failed(this).feedback("path-traversal-profile-empty-name").build();
     }
-
-    // UPDATED: Validate both user and filename as single path components.
     if (!isSafePathComponent(username) || !isSafeFileName(fullName)) {
       return traversalRejected();
     }
 
     try {
-      File uploadDirectory = cleanupAndCreateDirectoryForUser(username);
+      File uploadDirectory = createSafeDirectoryForUser(username);
       Path realUploadDirectory = uploadDirectory.toPath().toRealPath();
       Path destination = realUploadDirectory.resolve(fullName).normalize();
-
-      // UPDATED: Reject anything that does not resolve to a direct child.
-      if (!realUploadDirectory.equals(destination.getParent())
+      if (!destination.startsWith(realUploadDirectory)
+          || !realUploadDirectory.equals(destination.getParent())
           || Files.isSymbolicLink(destination)) {
         return traversalRejected();
       }
 
-      // UPDATED: Do not follow a symlink if one appears at the destination.
       try (InputStream input = file.getInputStream();
           OutputStream output =
               Files.newOutputStream(
@@ -82,20 +109,26 @@ public class ProfileUploadBase implements AssignmentEndpoint {
       if (attemptWasMade(uploadDirectory, destination.toFile())) {
         return solvedIt(destination.toFile());
       }
-
       return informationMessage(this)
           .feedback("path-traversal-profile-updated")
           .feedbackArgs(destination.toFile().getAbsoluteFile())
           .build();
     } catch (IOException | InvalidPathException e) {
-      // UPDATED: Do not return filesystem paths or exception details to the client.
       return traversalRejected();
     }
   }
 
   @SneakyThrows
   protected File cleanupAndCreateDirectoryForUser(String username) {
-    // UPDATED: Build and verify the user directory beneath the trusted upload root.
+    var uploadDirectory = new File(this.webGoatHomeDirectory, "/PathTraversal/" + username);
+    if (uploadDirectory.exists()) {
+      FileSystemUtils.deleteRecursively(uploadDirectory);
+    }
+    Files.createDirectories(uploadDirectory.toPath());
+    return uploadDirectory;
+  }
+
+  private File createSafeDirectoryForUser(String username) throws IOException {
     Path configuredRoot = Path.of(webGoatHomeDirectory).toAbsolutePath().normalize();
     Files.createDirectories(configuredRoot);
     Path realConfiguredRoot = configuredRoot.toRealPath();
@@ -103,7 +136,6 @@ public class ProfileUploadBase implements AssignmentEndpoint {
     Path uploadRoot = realConfiguredRoot.resolve("PathTraversal");
     Files.createDirectories(uploadRoot);
     Path realUploadRoot = uploadRoot.toRealPath();
-
     if (!realConfiguredRoot.equals(realUploadRoot.getParent())) {
       throw new IOException("Invalid upload root");
     }
@@ -113,17 +145,14 @@ public class ProfileUploadBase implements AssignmentEndpoint {
         || Files.isSymbolicLink(userDirectory)) {
       throw new IOException("Invalid user upload directory");
     }
-
     if (Files.exists(userDirectory, LinkOption.NOFOLLOW_LINKS)) {
       FileSystemUtils.deleteRecursively(userDirectory.toFile());
     }
-
     Files.createDirectories(userDirectory);
     Path realUserDirectory = userDirectory.toRealPath();
     if (!realUploadRoot.equals(realUserDirectory.getParent())) {
       throw new IOException("Invalid user upload directory");
     }
-
     return realUserDirectory.toFile();
   }
 
@@ -139,6 +168,7 @@ public class ProfileUploadBase implements AssignmentEndpoint {
 
   private static boolean isSafeFileName(String value) {
     if (!isSafePathComponent(value)
+        || ENCODED_PATH_CHARACTER.matcher(value).find()
         || value.indexOf(':') >= 0
         || value.endsWith(".")
         || value.endsWith(" ")) {
