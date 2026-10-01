@@ -89,7 +89,7 @@ jobs:
         run: ./mvnw --batch-mode --no-transfer-progress org.owasp:dependency-check-maven:check -DfailBuildOnCVSS=7 -Dformats=HTML,JSON -DnvdApiKey="$NVD_API_KEY"
       - name: Trivy dependency scan (when NVD API key is unavailable)
         if: env.NVD_API_KEY == ''
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scan-ref: .
@@ -135,7 +135,7 @@ jobs:
           push: false
           tags: ${{ env.IMAGE_NAME }}:${{ github.sha }}
       - name: Trivy report
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ env.IMAGE_NAME }}:${{ github.sha }}
           format: sarif
@@ -149,7 +149,7 @@ jobs:
         with:
           sarif_file: target/trivy-results.sarif
       - name: Trivy blocking gate
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ env.IMAGE_NAME }}:${{ github.sha }}
           format: table
