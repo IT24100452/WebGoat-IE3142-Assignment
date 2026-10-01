@@ -57,3 +57,5 @@ docker compose ps > evidence/generated/compose-ps.txt
 curl --fail http://127.0.0.1:8080/WebGoat/actuator/health \
   > evidence/generated/webgoat-health.json
 ```
+
+Keep generated evidence local and review it before sharing it in a report.
