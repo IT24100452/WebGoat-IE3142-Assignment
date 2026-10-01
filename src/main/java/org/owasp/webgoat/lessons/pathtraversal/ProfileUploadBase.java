@@ -11,7 +11,13 @@ import static org.owasp.webgoat.container.assignments.AttackResultBuilder.succes
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
+import java.nio.file.LinkOption;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
@@ -38,41 +44,116 @@ public class ProfileUploadBase implements AssignmentEndpoint {
   }
 
   protected AttackResult execute(MultipartFile file, String fullName, String username) {
-    if (file.isEmpty()) {
+    if (file == null || file.isEmpty()) {
       return failed(this).feedback("path-traversal-profile-empty-file").build();
     }
-    if (StringUtils.isEmpty(fullName)) {
+    if (!StringUtils.hasLength(fullName)) {
       return failed(this).feedback("path-traversal-profile-empty-name").build();
     }
 
-    File uploadDirectory = cleanupAndCreateDirectoryForUser(username);
+    // UPDATED: Validate both user and filename as single path components.
+    if (!isSafePathComponent(username) || !isSafeFileName(fullName)) {
+      return traversalRejected();
+    }
 
     try {
-      var uploadedFile = new File(uploadDirectory, fullName);
-      uploadedFile.createNewFile();
-      FileCopyUtils.copy(file.getBytes(), uploadedFile);
+      File uploadDirectory = cleanupAndCreateDirectoryForUser(username);
+      Path realUploadDirectory = uploadDirectory.toPath().toRealPath();
+      Path destination = realUploadDirectory.resolve(fullName).normalize();
 
-      if (attemptWasMade(uploadDirectory, uploadedFile)) {
-        return solvedIt(uploadedFile);
+      // UPDATED: Reject anything that does not resolve to a direct child.
+      if (!realUploadDirectory.equals(destination.getParent())
+          || Files.isSymbolicLink(destination)) {
+        return traversalRejected();
       }
+
+      // UPDATED: Do not follow a symlink if one appears at the destination.
+      try (InputStream input = file.getInputStream();
+          OutputStream output =
+              Files.newOutputStream(
+                  destination,
+                  StandardOpenOption.CREATE,
+                  StandardOpenOption.TRUNCATE_EXISTING,
+                  StandardOpenOption.WRITE,
+                  LinkOption.NOFOLLOW_LINKS)) {
+        input.transferTo(output);
+      }
+
+      if (attemptWasMade(uploadDirectory, destination.toFile())) {
+        return solvedIt(destination.toFile());
+      }
+
       return informationMessage(this)
           .feedback("path-traversal-profile-updated")
-          .feedbackArgs(uploadedFile.getAbsoluteFile())
+          .feedbackArgs(destination.toFile().getAbsoluteFile())
           .build();
-
-    } catch (IOException e) {
-      return failed(this).output(e.getMessage()).build();
+    } catch (IOException | InvalidPathException e) {
+      // UPDATED: Do not return filesystem paths or exception details to the client.
+      return traversalRejected();
     }
   }
 
   @SneakyThrows
   protected File cleanupAndCreateDirectoryForUser(String username) {
-    var uploadDirectory = new File(this.webGoatHomeDirectory, "/PathTraversal/" + username);
-    if (uploadDirectory.exists()) {
-      FileSystemUtils.deleteRecursively(uploadDirectory);
+    // UPDATED: Build and verify the user directory beneath the trusted upload root.
+    Path configuredRoot = Path.of(webGoatHomeDirectory).toAbsolutePath().normalize();
+    Files.createDirectories(configuredRoot);
+    Path realConfiguredRoot = configuredRoot.toRealPath();
+
+    Path uploadRoot = realConfiguredRoot.resolve("PathTraversal");
+    Files.createDirectories(uploadRoot);
+    Path realUploadRoot = uploadRoot.toRealPath();
+
+    if (!realConfiguredRoot.equals(realUploadRoot.getParent())) {
+      throw new IOException("Invalid upload root");
     }
-    Files.createDirectories(uploadDirectory.toPath());
-    return uploadDirectory;
+
+    Path userDirectory = realUploadRoot.resolve(username).normalize();
+    if (!realUploadRoot.equals(userDirectory.getParent())
+        || Files.isSymbolicLink(userDirectory)) {
+      throw new IOException("Invalid user upload directory");
+    }
+
+    if (Files.exists(userDirectory, LinkOption.NOFOLLOW_LINKS)) {
+      FileSystemUtils.deleteRecursively(userDirectory.toFile());
+    }
+
+    Files.createDirectories(userDirectory);
+    Path realUserDirectory = userDirectory.toRealPath();
+    if (!realUploadRoot.equals(realUserDirectory.getParent())) {
+      throw new IOException("Invalid user upload directory");
+    }
+
+    return realUserDirectory.toFile();
+  }
+
+  private static boolean isSafePathComponent(String value) {
+    return value != null
+        && !value.isBlank()
+        && !".".equals(value)
+        && !"..".equals(value)
+        && value.indexOf('/') < 0
+        && value.indexOf('\\') < 0
+        && value.chars().noneMatch(Character::isISOControl);
+  }
+
+  private static boolean isSafeFileName(String value) {
+    if (!isSafePathComponent(value)
+        || value.indexOf(':') >= 0
+        || value.endsWith(".")
+        || value.endsWith(" ")) {
+      return false;
+    }
+
+    // UPDATED: Reject Windows device names as upload filenames.
+    return !value.matches("(?i)^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\\..*)?$");
+  }
+
+  private AttackResult traversalRejected() {
+    return failed(this)
+        .attemptWasMade()
+        .feedback("path-traversal-profile-attempt")
+        .build();
   }
 
   private boolean attemptWasMade(File expectedUploadDirectory, File uploadedFile)
