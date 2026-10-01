@@ -33,10 +33,6 @@ import org.springframework.web.bind.annotation.RestController;
 })
 public class DefaultCredentialsTask implements AssignmentEndpoint {
 
-  // These are hardcoded default credentials (NOT secure in real applications)
-  private static final String DEFAULT_USERNAME = "admin";
-  private static final String DEFAULT_PASSWORD = "admin";
-
   @PostMapping(
       value = "/SecurityMisconfiguration/task1",
       consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
@@ -56,13 +52,9 @@ public class DefaultCredentialsTask implements AssignmentEndpoint {
     // 1. Changed during deployment
     // 2. Never accepted on login
     // 3. Logged and alerted (potential attack)
-    if (DEFAULT_USERNAME.equals(username.trim()) && DEFAULT_PASSWORD.equals(password)) {
-      return success(this)
-          .feedback("securitymisconfiguration.task1.success")
-          .output("User profile: staging admin (no MFA)")
-          .build();
-    }
-
+      
+    // UPDATED: Do not accept hard-coded default credentials (or any credentials
+    // here without a real authentication check).
     return failed(this)
         .feedback("securitymisconfiguration.task1.failure.invalid")
         .build();
