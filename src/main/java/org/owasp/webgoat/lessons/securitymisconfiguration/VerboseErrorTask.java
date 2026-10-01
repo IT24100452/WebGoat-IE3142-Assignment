@@ -26,37 +26,16 @@ import org.springframework.web.bind.annotation.RestController;
 })
 public class VerboseErrorTask implements AssignmentEndpoint {
 
-  static final String LEAKED_TOKEN = "STAGING-TOKEN-42";
-
-  @GetMapping(value = "/SecurityMisconfiguration/task2/trigger", produces = MediaType.TEXT_PLAIN_VALUE)
+     @GetMapping(value = "/SecurityMisconfiguration/task2/trigger", produces = MediaType.TEXT_PLAIN_VALUE)
   public ResponseEntity<String> triggerError() {
-    String stackTrace =
-        "2025-03-21 09:42:11,012 ERROR [staging] com.webgoat.DebugController - Null pointer while rendering template\n"
-            + "java.lang.NullPointerException: Cannot invoke \"Object.toString()\" because \"ctx" + "\" is null\n"
-            + "\tat com.webgoat.DebugController.render(DebugController.java:94)\n"
-            + "\tat org.springframework.mvc.DispatcherServlet.doDispatch(DispatcherServlet.java:1101)\n"
-            + "\tat ...\n"
-            + "\nENVIRONMENT=staging\n"
-            + "DEBUG_MODE=true\n"
-            + "DB_USER=staging_user\n"
-            + "DB_PASSWORD=staging_password123\n"
-            + "SYSTEM_API_TOKEN="
-            + LEAKED_TOKEN
-            + "\n";
-    return ResponseEntity.ok(stackTrace);
+    // UPDATED: Return a generic error; do not expose stack traces or configuration.
+    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Request failed");
   }
 
-@GetMapping(value = "/SecurityMisconfiguration/task2/config", produces = MediaType.APPLICATION_JSON_VALUE)
-  public ResponseEntity<String> fetchConfig(@RequestParam(value = "token", required = false) String token) {
-    if (LEAKED_TOKEN.equals(token)) {
-      String json =
-          "{\n"
-              + "  \"feature\": \"debug\",\n"
-              + "  \"logging\": \"trace\",\n"
-              + "  \"notes\": \"Never expose this in production!\"\n"
-              + "}";
-      return ResponseEntity.ok(json);
-    }
+  @GetMapping(value = "/SecurityMisconfiguration/task2/config", produces = MediaType.APPLICATION_JSON_VALUE)
+  public ResponseEntity<String> fetchConfig(
+      @RequestParam(value = "token", required = false) String token) {
+    // UPDATED: Never use a leaked/static token to grant access to configuration.
     return ResponseEntity.status(HttpStatus.FORBIDDEN).body("ACCESS DENIED");
   }
 
@@ -64,19 +43,16 @@ public class VerboseErrorTask implements AssignmentEndpoint {
       value = "/SecurityMisconfiguration/task2",
       consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
   public AttackResult submitToken(@RequestParam("token") String token) {
-    if (LEAKED_TOKEN.equals(token)) {
-      return success(this)
-          .feedback("securitymisconfiguration.task2.success")
-          .output("Debug mode disabled. Stack traces are now safe for users.")
-          .build();
-    }
     if (token == null || token.isBlank()) {
       return failed(this)
           .feedback("securitymisconfiguration.task2.failure.blank")
           .build();
     }
+
+    // UPDATED: There is no hard-coded leaked token that can mark this task successful.
     return failed(this)
         .feedback("securitymisconfiguration.task2.failure.invalid")
         .build();
   }
 }
+  
