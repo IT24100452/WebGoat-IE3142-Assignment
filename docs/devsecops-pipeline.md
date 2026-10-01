@@ -15,3 +15,10 @@ workflow uses Trivy's filesystem vulnerability scanner for Maven dependencies, f
 on fixed HIGH or CRITICAL findings. No API key is stored in the repository.
 
 Generated scan and test reports are kept as workflow artifacts rather than committed.
+
+The dependency and image scans intentionally ignore the XStream CVEs used by the
+Vulnerable Components lesson. The XStream version must remain vulnerable for that
+lesson; all other reported dependencies are gated, with Jackson and Tomcat pinned to
+patched versions. Semgrep similarly excludes only the deliberately vulnerable lesson
+examples and test fixtures from its generic hardcoded-credential, SQL-concatenation,
+and command-execution rules.

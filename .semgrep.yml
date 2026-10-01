@@ -8,6 +8,10 @@ rules:
           - pattern: $S.executeQuery($Q + $X)
           - pattern: $S.executeUpdate($Q + $X)
           - pattern: $S.prepareStatement($Q + $X)
+    paths:
+      exclude:
+        - "**/lessons/challenges/**"
+        - "**/lessons/sqlinjection/**"
   - id: webgoat-java-runtime-exec
     message: Avoid command execution with user-controlled values.
     severity: ERROR
@@ -16,6 +20,9 @@ rules:
       - pattern-either:
           - pattern: Runtime.getRuntime().exec(...)
           - pattern: new ProcessBuilder(...)
+    paths:
+      exclude:
+        - "**/org/dummy/insecure/framework/**"
   - id: webgoat-java-hardcoded-password
     message: Do not hardcode passwords. Inject secrets at runtime.
     severity: ERROR
@@ -24,4 +31,8 @@ rules:
     paths:
       exclude:
         - "**/src/test/**"
+        - "**/src/it/**"
         - "**/target/**"
+        - "**/org/dummy/insecure/framework/**"
+        - "**/lessons/challenges/**"
+        - "**/lessons/jwt/JWTRefreshEndpoint.java"
