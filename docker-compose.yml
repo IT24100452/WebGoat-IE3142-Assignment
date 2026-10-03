@@ -1,4 +1,4 @@
-# Docker Compose configuration for WebGoat 
+# Docker Compose configuration for WebGoat
 # This file defines how the WebGoat application and WebWolf tool run in containers
 services:
   webgoat:
@@ -21,7 +21,7 @@ services:
       - "127.0.0.1:${WEBWOLF_PORT:-9090}:9090"
     # Mount a persistent volume to store WebGoat data and lessons
     volumes:
-      - webgoat-data:/home/webgoat/.webgoat-2026.2-SNAPSHOT
+      - webgoat-data:/home/webgoat/data
     # Run the container with read-only root filesystem (extra security)
     read_only: true
     # Create a temporary filesystem for /tmp with strict permissions
@@ -46,4 +46,3 @@ services:
 # Define named volumes for persistent data storage
 volumes:
   webgoat-data:
- 

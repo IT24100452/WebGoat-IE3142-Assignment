@@ -10,6 +10,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import java.util.ArrayList;
@@ -66,10 +67,13 @@ public class Salaries {
     java.util.Map<String, Object> employeeJson = new HashMap<>();
 
     try (InputStream is = new FileInputStream(d)) {
-      var documentFactory = DocumentBuilderFactory.newInstance();
+      DocumentBuilderFactory documentFactory = DocumentBuilderFactory.newInstance();
+      documentFactory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
       documentFactory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
       documentFactory.setFeature("http://xml.org/sax/features/external-general-entities", false);
       documentFactory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+      documentFactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+      documentFactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
       documentFactory.setXIncludeAware(false);
       documentFactory.setExpandEntityReferences(false);
       var document = documentFactory.newDocumentBuilder().parse(is);

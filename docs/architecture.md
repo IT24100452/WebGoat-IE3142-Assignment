@@ -20,6 +20,7 @@ flowchart LR
     WebGoat --> Tmpfs
     WebWolf --> Tmpfs
 ```
+
 Compose publishes only loopback addresses on the host. Inside the container,
 both Spring Boot applications bind to `0.0.0.0` so Docker can forward traffic
 without requiring custom DNS entries. The image drops all Linux capabilities,

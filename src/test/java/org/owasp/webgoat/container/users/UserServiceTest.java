@@ -48,4 +48,9 @@ class UserServiceTest {
     Assertions.assertThat(UserService.quoteIdentifier("user\"; DROP SCHEMA PUBLIC; --"))
         .isEqualTo("\"user\"\"; DROP SCHEMA PUBLIC; --\"");
   }
+  @Test
+  void quoteIdentifierRejectsNullBytes() {
+    Assertions.assertThatThrownBy(() -> UserService.quoteIdentifier("user\u0000"))
+        .isInstanceOf(IllegalArgumentException.class);
+  }
 }

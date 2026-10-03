@@ -40,9 +40,7 @@ public class ProfileUploadFix extends ProfileUploadBase {
       @RequestParam("uploadedFileFix") MultipartFile file,
       @RequestParam(value = "fullNameFix", required = false) String fullName,
       @CurrentUsername String username) {
-   
-      // UPDATED: The shared base class validates and confines the upload path.
-    return super.execute(file, fullName, username);
+    return super.executeSafely(file, fullName, username);
   }
 
   @GetMapping("/PathTraversal/profile-picture-fix")

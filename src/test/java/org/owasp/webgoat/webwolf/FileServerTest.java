@@ -85,16 +85,26 @@ class FileServerTest {
   }
 
   @Test
-  void shouldRejectUploadWithPathTraversal() throws Exception {
-    mockMvc
-        .perform(
-            multipart("/fileupload")
-                .file(new MockMultipartFile("file", "../outside.txt", "text/plain", "x".getBytes()))
-                .principal(AUTHENTICATION))
-        .andExpect(status().is3xxRedirection())
-        .andExpect(redirectedUrl("files?uploadSuccess=Nothing+to+upload"));
+  void shouldRejectTraversalAndEncodedPathFilenames() throws Exception {
+    for (String filename :
+        List.of(
+            "../outside.txt",
+            "....//outside.txt",
+            "..\\outside.txt",
+            "%2e%2e%2foutside.txt",
+            "C:\\temp\\outside.txt")) {
+      mockMvc
+          .perform(
+              multipart("/fileupload")
+                  .file(new MockMultipartFile("file", filename, "text/plain", "x".getBytes()))
+                  .principal(AUTHENTICATION))
+          .andExpect(status().is3xxRedirection())
+          .andExpect(redirectedUrl("files?uploadSuccess=Nothing+to+upload"));
+    }
 
     Assertions.assertThat(fileServerLocation.resolve("outside.txt")).doesNotExist();
+    Assertions.assertThat(fileServerLocation.resolve("temp").resolve("outside.txt")).doesNotExist();
+    Assertions.assertThat(uploadedFiles()).isEmpty();
   }
 
   @Test

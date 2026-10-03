@@ -3,9 +3,7 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 package org.owasp.webgoat.lessons.securitymisconfiguration;
-
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
-import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
@@ -18,7 +16,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Task exposing verbose stack traces leaking sensitive configuration. */
+/** Task demonstrating safe handling of errors and protected configuration. */
 @RestController
 @AssignmentHints({
     "securitymisconfiguration.task2.hint1",
@@ -26,29 +24,20 @@ import org.springframework.web.bind.annotation.RestController;
 })
 public class VerboseErrorTask implements AssignmentEndpoint {
 
-  @GetMapping(
-      value = "/SecurityMisconfiguration/task2/trigger",
-      produces = MediaType.TEXT_PLAIN_VALUE)
+  @GetMapping(value = "/SecurityMisconfiguration/task2/trigger", produces = MediaType.TEXT_PLAIN_VALUE)
   public ResponseEntity<String> triggerError() {
-    // UPDATED: Never return stack traces, environment settings, or secrets.
     return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-        .contentType(MediaType.TEXT_PLAIN)
         .body("An unexpected error occurred.");
   }
-
-  @GetMapping(
-      value = "/SecurityMisconfiguration/task2/config",
-      produces = MediaType.APPLICATION_JSON_VALUE)
-  public ResponseEntity<String> fetchConfig(
-      @RequestParam(value = "token", required = false) String token) {
-    // UPDATED: A supplied token must not grant access to configuration.
+  @GetMapping(value = "/SecurityMisconfiguration/task2/config", produces = MediaType.TEXT_PLAIN_VALUE)
+  public ResponseEntity<String> fetchConfig() {
     return ResponseEntity.status(HttpStatus.FORBIDDEN).body("ACCESS DENIED");
   }
 
   @PostMapping(
       value = "/SecurityMisconfiguration/task2",
       consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
-  public AttackResult submitToken(@RequestParam("token") String token) {
+  public AttackResult submitToken(@RequestParam(value = "token", required = false) String token) {
     if (token == null || token.isBlank()) {
       return failed(this)
           .feedback("securitymisconfiguration.task2.failure.blank")
@@ -61,4 +50,3 @@ public class VerboseErrorTask implements AssignmentEndpoint {
         .build();
   }
 }
-  

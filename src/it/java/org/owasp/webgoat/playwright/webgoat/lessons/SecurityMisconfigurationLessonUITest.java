@@ -31,23 +31,20 @@ public class SecurityMisconfigurationLessonUITest extends PlaywrightTest {
   }
 
   @Test
-  @DisplayName("Walk through Security Misconfiguration lesson")
-  void shouldCompleteSecurityMisconfigurationTasks() {
-    // Task 1 - default credentials
+  @DisplayName("Verify security misconfiguration protections")
+  void shouldRejectLocalCredentialsAndHideSensitiveErrors() {
     lessonPage.navigateTo(2);
     lessonPage.fillDefaultCredentials("admin", "admin");
     lessonPage.submitTask1();
-    assertThat(lessonPage.task1Output()).containsText("Default admin account compromised");
+    assertThat(lessonPage.task1Output()).containsText("Authentication is unavailable");
 
-    // Task 2 - verbose error leak
     lessonPage.navigateTo(3);
+    lessonPage.triggerSafeError();
+    Assertions.assertThat(lessonPage.debugOutput()).isEqualTo("An unexpected error occurred.");
+    Assertions.assertThat(lessonPage.requestProtectedConfig()).isEqualTo("ACCESS DENIED");
+    lessonPage.submitTask2("any-token");
+    assertThat(lessonPage.getAssignmentOutput()).containsText("The request is denied");
 
-    lessonPage.triggerDebugLeak();
-    Assertions.assertThat(lessonPage.debugOutput()).contains("SYSTEM_API_TOKEN");
-    lessonPage.submitTask2(lessonPage.extractTokenFromDebug());
-    assertThat(lessonPage.getAssignmentOutput()).containsText("Debug token recovered");
-
-    // Task 3 - actuator exposure
     lessonPage.navigateTo(4);
 
     var envJson = lessonPage.requestActuatorEnv();
@@ -55,7 +52,6 @@ public class SecurityMisconfigurationLessonUITest extends PlaywrightTest {
     lessonPage.submitTask3(lessonPage.extractApiKey(envJson));
     assertThat(lessonPage.getAssignmentOutput()).containsText("Actuator endpoints secured");
 
-    // Task 4 - configuration hardening
     lessonPage.navigateTo(5);
     lessonPage.applyHardeningConfig();
     assertThat(lessonPage.getAssignmentOutput()).containsText("Configuration hardened");

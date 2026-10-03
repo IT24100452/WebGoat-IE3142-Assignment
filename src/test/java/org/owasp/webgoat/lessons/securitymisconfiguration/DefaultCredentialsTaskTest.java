@@ -36,7 +36,7 @@ class DefaultCredentialsTaskTest {
   }
 
   @Test
-  void shouldRejectDefaultCredentials() {
+  void shouldFailClosedWithDefaultCredentials() {
     AttackResult result = task.login("admin", "admin");
 
     assertThat(result.assignmentSolved()).isFalse();

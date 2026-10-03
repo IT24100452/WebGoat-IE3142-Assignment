@@ -18,11 +18,11 @@
         <form class="attack-form" method="POST" th:action="@{/SecurityMisconfiguration/task1}">
           <div class="form-group">
             <label for="username">Username</label>
-            <input class="form-control" id="username" name="username" placeholder="Try the default admin username" autocomplete="username" />
+            <input class="form-control" id="username" name="username" placeholder="Authentication is unavailable" autocomplete="username" />
           </div>
           <div class="form-group">
             <label for="password">Password</label>
-            <input class="form-control" id="password" name="password" type="password" placeholder="And the matching default password" autocomplete="current-password" />
+            <input class="form-control" id="password" name="password" type="password" placeholder="No local credentials are accepted" autocomplete="current-password" />
           </div>
           <button type="submit" class="btn btn-primary btn-block" style="margin-top:10px;">Attempt login</button>
         </form>
@@ -39,15 +39,15 @@
             <i class="fa fa-2 fa-check hidden" aria-hidden="true"></i>
         </div>
         <div class="btn-group btn-group-sm" role="group" aria-label="Debug actions" style="margin-bottom:10px;">
-          <button class="btn btn-default" type="button" id="trigger-debug" th:data-url="@{/SecurityMisconfiguration/task2/trigger}">Trigger debug error</button>
-          <button class="btn btn-default" type="button" id="fetch-config" th:data-url="@{/SecurityMisconfiguration/task2/config}">Call /config with token</button>
+          <button class="btn btn-default" type="button" id="trigger-debug" th:data-url="@{/SecurityMisconfiguration/task2/trigger}">Trigger safe error response</button>
+          <button class="btn btn-default" type="button" id="fetch-config" th:data-url="@{/SecurityMisconfiguration/task2/config}">Request protected config</button>
         </div>
         <pre id="debug-output" class="bg-light border rounded p-2 small text-wrap"></pre>
         <pre id="config-output" class="bg-light border rounded p-2 small text-wrap d-none"></pre>
         <form class="attack-form" method="POST" th:action="@{/SecurityMisconfiguration/task2}" style="margin-top:15px;">
           <div class="form-group">
-            <label for="token">Leaked token</label>
-            <input class="form-control" id="token" name="token" placeholder="Paste the token from the stack trace" autocomplete="off" />
+            <label for="token">Token test</label>
+            <input class="form-control" id="token" name="token" placeholder="All token submissions are denied" autocomplete="off" />
           </div>
           <button type="submit" class="btn btn-primary btn-block" style="margin-top:10px;">Submit token</button>
         </form>

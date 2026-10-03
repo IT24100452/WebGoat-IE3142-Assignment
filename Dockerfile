@@ -13,10 +13,10 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/* && \
     useradd -ms /bin/bash webgoat && \
     usermod -a -G 0 webgoat && \
-    mkdir -p /home/webgoat/.webgoat-2026.2-SNAPSHOT && \
+    mkdir -p /home/webgoat/data && \
     chgrp -R 0 /home/webgoat && \
     chmod -R g=u /home/webgoat && \
-    chmod 777 /home/webgoat/.webgoat-2026.2-SNAPSHOT
+    chmod 770 /home/webgoat/data
 
 # Switch to the non-root 'webgoat' user for all subsequent commands
 USER webgoat
@@ -37,6 +37,8 @@ WORKDIR /home/webgoat
 # Run the WebGoat application with special JVM flags for compatibility
 ENTRYPOINT [ "java", \
    "-Duser.home=/home/webgoat", \
+   "-Dwebgoat.server.directory=/home/webgoat/data/", \
+   "-Dwebgoat.user.directory=/home/webgoat/data/", \
    "-Dfile.encoding=UTF-8", \
    "--add-opens", "java.base/java.lang=ALL-UNNAMED", \
    "--add-opens", "java.base/java.util=ALL-UNNAMED", \
@@ -52,4 +54,4 @@ ENTRYPOINT [ "java", \
 
 # Docker health check
 HEALTHCHECK --interval=5s --timeout=3s \
-  CMD curl --fail http://localhost:8080/WebGoat/actuator/health || exit 1 
+  CMD curl --fail http://localhost:8080/WebGoat/actuator/health || exit 1

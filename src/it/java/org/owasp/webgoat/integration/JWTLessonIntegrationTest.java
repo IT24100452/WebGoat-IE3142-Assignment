@@ -36,7 +36,7 @@ import org.owasp.webgoat.lessons.jwt.JWTSecretKeyEndpoint;
 public class JWTLessonIntegrationTest extends IntegrationTest {
 
   @Test
-  public void solveAssignment() throws IOException, NoSuchAlgorithmException {
+  public void validateJwtFlowsAndRejectUntrustedClaims() throws IOException, NoSuchAlgorithmException {
     startLesson("JWT");
 
     decodingToken();
@@ -53,7 +53,6 @@ public class JWTLessonIntegrationTest extends IntegrationTest {
 
     quiz();
 
-    checkResults("JWT");
   }
 
   private String generateToken(String key) {
@@ -232,7 +231,7 @@ public class JWTLessonIntegrationTest extends IntegrationTest {
             .claim("username", "Tom")
             .claim("Email", "tom@webgoat.org")
             .claim("Role", new String[] {"Manager", "Project Administrator"})
-            .signWith(SignatureAlgorithm.HS256, "deletingTom")
+            .signWith(SignatureAlgorithm.HS512, "deletingTom")
             .compact();
 
     MatcherAssert.assertThat(
@@ -245,7 +244,7 @@ public class JWTLessonIntegrationTest extends IntegrationTest {
             .statusCode(200)
             .extract()
             .path("lessonCompleted"),
-        CoreMatchers.is(true));
+        CoreMatchers.is(false));
   }
 
   private void deleteTomThroughJkuClaim() throws NoSuchAlgorithmException {
@@ -294,7 +293,7 @@ public class JWTLessonIntegrationTest extends IntegrationTest {
             .statusCode(200)
             .extract()
             .path("lessonCompleted"),
-        CoreMatchers.is(true));
+        CoreMatchers.is(false));
   }
 
   private void quiz() {

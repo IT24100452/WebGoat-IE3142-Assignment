@@ -1,17 +1,11 @@
-=== Default credentials still active
+=== Default credentials
 
-We start with something depressingly common: default credentials left enabled in
-production.
+Default credentials left enabled in production can provide an attacker with immediate
+access to privileged functionality.
 
-Operations pushed the staging build straight to production and forgot to remove the
-factory admin account. Can you authenticate using the vendor default credentials?
+The lesson endpoint has no real authentication provider configured, so it fails closed
+and rejects every local username and password. A production application should delegate
+authentication to its configured identity provider rather than add a hard-coded account.
 
-Steps to try:
-
-. Look for banner text, comments, or documentation shipped with the interface.
-. Try the classic combinations (`admin/admin`, `root/password`, `support/support`, ...).
-. Once you get in, capture a screenshot or note the profile information — it proves the
-  account is live.
-
-When you succeed the panel below will confirm the compromise and remind you why default
-accounts must be disabled or forced to rotate on first boot.
+The form remains available to demonstrate that submitting credentials does not grant
+access while authentication is unavailable.
