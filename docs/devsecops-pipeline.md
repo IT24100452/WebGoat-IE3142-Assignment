@@ -16,6 +16,11 @@ on fixed HIGH or CRITICAL findings. No API key is stored in the repository.
 
 Generated scan and test reports are kept as workflow artifacts rather than committed.
 
+Gitleaks scans the full Git history. Its configuration allowlists only the exact
+historical commits that produced the repository's existing lesson/example findings;
+future commits are still scanned. If any historical credential was real, it should
+also be treated as exposed and revoked independently of this scan baseline.
+
 The dependency and image scans intentionally ignore the XStream CVEs used by the
 Vulnerable Components lesson. The XStream version must remain vulnerable for that
 lesson; all other reported dependencies are gated, with Jackson and Tomcat pinned to
