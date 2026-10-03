@@ -1,4 +1,4 @@
-title = "WebGoat Gitleaks configuration"
+title = "IE3142 Gitleaks configuration"
 
 [extend]
 useDefault = true

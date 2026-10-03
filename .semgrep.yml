@@ -1,5 +1,5 @@
 rules:
-  - id: webgoat-java-sql-string-concatenation
+  - id: ie3142-java-sql-string-concatenation
     message: Untrusted values must not be concatenated into SQL; use bound parameters.
     severity: ERROR
     languages: [java]
@@ -12,7 +12,7 @@ rules:
       exclude:
         - "**/lessons/challenges/**"
         - "**/lessons/sqlinjection/**"
-  - id: webgoat-java-runtime-exec
+  - id: ie3142-java-runtime-exec
     message: Avoid command execution with user-controlled values.
     severity: ERROR
     languages: [java]
@@ -23,7 +23,7 @@ rules:
     paths:
       exclude:
         - "**/org/dummy/insecure/framework/**"
-  - id: webgoat-java-hardcoded-password
+  - id: ie3142-hardcoded-password
     message: Do not hardcode passwords. Inject secrets at runtime.
     severity: ERROR
     languages: [java]

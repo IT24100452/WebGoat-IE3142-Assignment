@@ -67,13 +67,14 @@ class JWTTokenTest {
 
     assertThat(token.getHeader()).contains("\"alg\" : \"HS256\"");
     assertThat(token.getPayload()).contains("{\"te");
+    assertThat(token.isSignatureValid()).isFalse();
   }
 
   @Test
   void onlyEncodeWhenHeaderOrPayloadIsPresent() {
     var token = JWTToken.encode("", "", "");
 
-    assertThat(token.getEncoded()).isNullOrEmpty();
+    assertThat(token.getEncoded()).isNullOrEmpty();  //added assertion correction
   }
 
   @Test

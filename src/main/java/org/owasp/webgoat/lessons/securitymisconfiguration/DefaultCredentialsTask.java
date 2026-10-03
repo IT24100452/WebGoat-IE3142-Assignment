@@ -36,7 +36,6 @@ public class DefaultCredentialsTask implements AssignmentEndpoint {
           .feedback("securitymisconfiguration.task1.failure.blank")
           .build();
     }
-
     return failed(this)
         .feedback("securitymisconfiguration.task1.failure.invalid")
         .build();

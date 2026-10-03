@@ -3,7 +3,6 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 package org.owasp.webgoat.lessons.securitymisconfiguration;
-
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
 
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
@@ -30,7 +29,6 @@ public class VerboseErrorTask implements AssignmentEndpoint {
     return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
         .body("An unexpected error occurred.");
   }
-
   @GetMapping(value = "/SecurityMisconfiguration/task2/config", produces = MediaType.TEXT_PLAIN_VALUE)
   public ResponseEntity<String> fetchConfig() {
     return ResponseEntity.status(HttpStatus.FORBIDDEN).body("ACCESS DENIED");
@@ -45,6 +43,8 @@ public class VerboseErrorTask implements AssignmentEndpoint {
           .feedback("securitymisconfiguration.task2.failure.blank")
           .build();
     }
+
+    // UPDATED: No hard-coded or leaked token can authorize this operation.
     return failed(this)
         .feedback("securitymisconfiguration.task2.failure.invalid")
         .build();
